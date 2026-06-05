@@ -41,6 +41,16 @@ activities = {
     }
 }
 
+# In-memory student database - uses email as identifier
+students = {
+    "michael@mergington.edu": {"name": "Michael Chen", "grade": "10th Grade"},
+    "daniel@mergington.edu": {"name": "Daniel Smith", "grade": "11th Grade"},
+    "emma@mergington.edu": {"name": "Emma Johnson", "grade": "9th Grade"},
+    "sophia@mergington.edu": {"name": "Sophia Williams", "grade": "10th Grade"},
+    "john@mergington.edu": {"name": "John Brown", "grade": "12th Grade"},
+    "olivia@mergington.edu": {"name": "Olivia Davis", "grade": "9th Grade"}
+}
+
 
 @app.get("/")
 def root():
@@ -49,19 +59,67 @@ def root():
 
 @app.get("/activities")
 def get_activities():
+    """Get all activities with their details and current participant count"""
     return activities
 
 
+@app.get("/students")
+def get_students():
+    """Get all registered students with their details"""
+    return students
+
+
+@app.get("/students/{email}")
+def get_student(email: str):
+    """Get a specific student's information by email"""
+    if email not in students:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {"email": email, **students[email]}
+
+
 @app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
-    """Sign up a student for an activity"""
+def signup_for_activity(activity_name: str, email: str, name: str, grade: str):
+    """Sign up a student for an activity
+    
+    Parameters:
+    - activity_name: Name of the activity to sign up for
+    - email: Student email address
+    - name: Student full name
+    - grade: Student grade level (e.g., "9th Grade", "10th Grade")
+    """
+    # Validate inputs
+    if not email or not name or not grade:
+        raise HTTPException(status_code=400, detail="Email, name, and grade are required")
+    
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
 
     # Get the specific activity
     activity = activities[activity_name]
-
-    # Add student
+    
+    # Check if activity is full
+    if len(activity["participants"]) >= activity["max_participants"]:
+        raise HTTPException(status_code=400, detail="Activity is full")
+    
+    # Check if student already signed up for this activity
+    if email in activity["participants"]:
+        raise HTTPException(status_code=400, detail="Student is already signed up for this activity")
+    
+    # Create or update student record
+    if email not in students:
+        students[email] = {"name": name, "grade": grade}
+    
+    # Add student to activity participants
     activity["participants"].append(email)
-    return {"message": f"Signed up {email} for {activity_name}"}
+    
+    return {
+        "message": f"Successfully signed up {name} for {activity_name}",
+        "student": {"email": email, "name": name, "grade": grade},
+        "activity": activity_name
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
